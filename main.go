@@ -27,7 +27,7 @@ func main() {
 	}
 
 	if len(os.Args) < 2 {
-		pterm.Println(pterm.Yellow("Usage: tlog <time> <task> [day] [comment]"))
+		pterm.Println(pterm.Yellow("Usage: tlog <time> <task> [day | start-end] [comment]"))
 		return
 	}
 
@@ -45,14 +45,14 @@ func main() {
 		return
 	}
 
-	daysInput := safeArg(os.Args, 3)
+	daysInput := safeGetArg(os.Args, 3)
 	logDays, err := convertToDays(daysInput)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	logComment := safeArg(os.Args, 4)
+	logComment := safeGetArg(os.Args, 4)
 
 	tp := jira.BasicAuthTransport{
 		Username: conf.JiraLogin,
@@ -75,15 +75,53 @@ func main() {
 			return
 		}
 		spinner.Success(fmt.Sprintf(
-			"Created worklog as %s on issue %s for %d munutes: %s",
-			wl.Author.Name, jiraID, wl.TimeSpentSeconds/60, wl.Self,
+			"Created worklog as %s on issue %s for %d days, %d munutes per day: %s",
+			wl.Author.Name, jiraID, len(logDays), wl.TimeSpentSeconds/60, wl.Self,
 		))
 	}
 
 }
 
 func convertToDays(daysInput string) (daysToLog, error) {
-	panic("unimplemented")
+	firstDay, lastDay, err := daysIntervalBorders(daysInput)
+	if err != nil {
+		return daysToLog{}, err
+	}
+
+	interval := make(daysToLog)
+	for day := firstDay; !day.After(lastDay); day = day.Add(time.Hour * 24) {
+		interval[day] = struct{}{}
+	}
+
+	return interval, nil
+}
+
+func daysIntervalBorders(daysInput string) (firstDay, lastDay time.Time, err error) {
+	splitted := strings.Split(daysInput, "-")
+	switch {
+	case len(splitted) == 1:
+		// e.g. monday
+		firstDay, err = convertToDay(daysInput)
+		if err != nil {
+			return
+		}
+		lastDay = firstDay
+	case len(splitted) == 2:
+		// e.g. monday-friday
+		firstDay, err = convertToDay(daysInput)
+		if err != nil {
+			return
+		}
+		lastDay, err = convertToDay(daysInput)
+		if err != nil {
+			return
+		}
+	case len(splitted) > 2:
+		// e.g. monday-friday-monday (?? why would you do this)
+		return firstDay, lastDay, errors.New("the only accepted format for days are: [day] or [start-end]")
+	}
+
+	return
 }
 
 func convertToTask(input string, defaultProject string, aliases map[string]string) (string, error) {
@@ -136,7 +174,7 @@ func convertToDay(input string) (time.Time, error) {
 	}
 
 	if day != -1 {
-		return todayStart.Add(time.Duration(time.Now().Weekday()-day) * 24 * time.Hour), nil
+		return todayStart.Add(time.Duration(day-time.Now().Weekday()) * 24 * time.Hour), nil
 	}
 
 	if d, err := strconv.Atoi(input); err == nil {
@@ -183,7 +221,7 @@ func toPtr[T any](v T) *T {
 	return &v
 }
 
-func safeArg(arr []string, index int) string {
+func safeGetArg(arr []string, index int) string {
 	if index >= len(arr) {
 		return ""
 	}
