@@ -17,6 +17,8 @@ import (
 	"github.com/pterm/pterm"
 )
 
+type daysToLog map[time.Weekday]struct{}
+
 func main() {
 	conf, err := LoadConfig()
 	if err != nil {
@@ -30,7 +32,7 @@ func main() {
 	}
 
 	timeLogInput := os.Args[1]
-	timeLog, err := convertToTimeLog(timeLogInput)
+	timeLog, err := time.ParseDuration(timeLogInput)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -43,14 +45,14 @@ func main() {
 		return
 	}
 
-	dayInput := safeGet(os.Args, 3)
-	logDay, err := convertToDay(dayInput)
+	daysInput := safeArg(os.Args, 3)
+	logDays, err := convertToDays(daysInput)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	logComment := safeGet(os.Args, 4)
+	logComment := safeArg(os.Args, 4)
 
 	tp := jira.BasicAuthTransport{
 		Username: conf.JiraLogin,
@@ -76,6 +78,10 @@ func main() {
 		"Created worklog as %s on issue %s for %d munutes: %s",
 		wl.Author.Name, jiraID, wl.TimeSpentSeconds/60, wl.Self,
 	))
+}
+
+func convertToDays(daysInput string) (daysToLog, error) {
+	panic("unimplemented")
 }
 
 func convertToTask(input string, defaultProject string, aliases map[string]string) (string, error) {
@@ -139,11 +145,6 @@ func convertToDay(input string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("day of the week, or day number expected")
 }
 
-func convertToTimeLog(inputTime string) (time.Duration, error) {
-	duration, err := time.ParseDuration(inputTime)
-	return duration, err
-}
-
 type Config struct {
 	JiraURL        string            `toml:"JiraURL"`
 	JiraLogin      string            `toml:"JiraLogin"`
@@ -180,7 +181,7 @@ func toPtr[T any](v T) *T {
 	return &v
 }
 
-func safeGet(arr []string, index int) string {
+func safeArg(arr []string, index int) string {
 	if index >= len(arr) {
 		return ""
 	}
