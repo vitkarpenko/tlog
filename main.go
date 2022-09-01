@@ -17,7 +17,7 @@ import (
 	"github.com/pterm/pterm"
 )
 
-type daysToLog map[time.Weekday]struct{}
+type daysToLog map[time.Time]struct{}
 
 func main() {
 	conf, err := LoadConfig()
@@ -64,20 +64,22 @@ func main() {
 	}
 
 	spinner, _ := pterm.DefaultSpinner.Start("Logging time... (JIRA might be slow🐌)")
-	wl, _, err := jiraClient.Issue.AddWorklogRecord(jiraID, &jira.WorklogRecord{
-		Comment:          logComment,
-		Started:          toPtr(jira.Time(logDay)),
-		TimeSpentSeconds: int(timeLog.Seconds()),
-	})
-	if err != nil {
-		spinner.Fail(err.Error())
-		return
+	for day := range logDays {
+		wl, _, err := jiraClient.Issue.AddWorklogRecord(jiraID, &jira.WorklogRecord{
+			Comment:          logComment,
+			Started:          toPtr(jira.Time(day)),
+			TimeSpentSeconds: int(timeLog.Seconds()),
+		})
+		if err != nil {
+			spinner.Fail(err.Error())
+			return
+		}
+		spinner.Success(fmt.Sprintf(
+			"Created worklog as %s on issue %s for %d munutes: %s",
+			wl.Author.Name, jiraID, wl.TimeSpentSeconds/60, wl.Self,
+		))
 	}
 
-	spinner.Success(fmt.Sprintf(
-		"Created worklog as %s on issue %s for %d munutes: %s",
-		wl.Author.Name, jiraID, wl.TimeSpentSeconds/60, wl.Self,
-	))
 }
 
 func convertToDays(daysInput string) (daysToLog, error) {
