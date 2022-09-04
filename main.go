@@ -17,8 +17,6 @@ import (
 	"github.com/pterm/pterm"
 )
 
-type daysToLog map[time.Time]struct{}
-
 func main() {
 	conf, err := LoadConfig()
 	if err != nil {
@@ -64,7 +62,7 @@ func main() {
 	}
 
 	spinner, _ := pterm.DefaultSpinner.Start("Logging time... (JIRA might be slow🐌)")
-	for day := range logDays {
+	for _, day := range logDays {
 		wl, _, err := jiraClient.Issue.AddWorklogRecord(jiraID, &jira.WorklogRecord{
 			Comment:          logComment,
 			Started:          toPtr(jira.Time(day)),
@@ -82,18 +80,18 @@ func main() {
 
 }
 
-func convertToDays(daysInput string) (daysToLog, error) {
+func convertToDays(daysInput string) ([]time.Time, error) {
 	firstDay, lastDay, err := daysIntervalBorders(daysInput)
 	if err != nil {
-		return daysToLog{}, err
+		return nil, err
 	}
 
-	interval := make(daysToLog)
+	days := make([]time.Time, 0)
 	for day := firstDay; !day.After(lastDay); day = day.Add(time.Hour * 24) {
-		interval[day] = struct{}{}
+		days = append(days, day)
 	}
 
-	return interval, nil
+	return days, nil
 }
 
 func daysIntervalBorders(daysInput string) (firstDay, lastDay time.Time, err error) {
@@ -103,18 +101,18 @@ func daysIntervalBorders(daysInput string) (firstDay, lastDay time.Time, err err
 		// e.g. monday
 		firstDay, err = convertToDay(daysInput)
 		if err != nil {
-			return
+			return firstDay, lastDay, nil
 		}
 		lastDay = firstDay
 	case len(splitted) == 2:
 		// e.g. monday-friday
-		firstDay, err = convertToDay(daysInput)
+		firstDay, err = convertToDay(splitted[0])
 		if err != nil {
-			return
+			return firstDay, lastDay, nil
 		}
-		lastDay, err = convertToDay(daysInput)
+		lastDay, err = convertToDay(splitted[1])
 		if err != nil {
-			return
+			return firstDay, lastDay, nil
 		}
 	case len(splitted) > 2:
 		// e.g. monday-friday-monday (?? why would you do this)

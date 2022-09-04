@@ -1,7 +1,6 @@
 package main
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
@@ -39,12 +38,18 @@ func Test_convertToInterval(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		want    daysToLog
+		want    []time.Time
 		wantErr bool
 	}{
-		{name: "empty", input: "", want: daysToLog{time.Now().Truncate(24 * time.Hour).UTC(): struct{}{}}},
-		{name: "just monday", input: "monday", want: dayOnThisWeek(time.Monday)},
-		// {name: "monday to friday", input: "monday-friday", want: dayOnThisWeek(time.Monday)},
+		{name: "empty", input: "", want: []time.Time{time.Now()}},
+		{name: "just monday", input: "monday", want: []time.Time{dayOnThisWeek(time.Monday)}},
+		{name: "monday to friday", input: "monday-friday", want: []time.Time{
+			dayOnThisWeek(time.Monday),
+			dayOnThisWeek(time.Tuesday),
+			dayOnThisWeek(time.Wednesday),
+			dayOnThisWeek(time.Thursday),
+			dayOnThisWeek(time.Friday),
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -55,8 +60,11 @@ func Test_convertToInterval(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("convertToIntervals incorrect result; want: %+v, got: %+v", tt.want, got)
+			if len(tt.want) != len(got) {
+				t.Errorf("convertToIntervals incorrect result length; want: %+v, got: %+v", tt.want, got)
+			}
+			for i := range got {
+				require.Equal(t, tt.want[i].Truncate(24*time.Hour).UTC(), got[i])
 			}
 		})
 	}
